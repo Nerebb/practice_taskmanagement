@@ -2,8 +2,7 @@ const validator = require(".");
 const { User } = require("../models/User");
 
 const userValidateSchema = {};
-const AdminID = process.env.ADMIN_ID;
-const allowedFilters = ["name", "role"];
+const allowedFilters = ["name", "role", "curId"];
 
 userValidateSchema.CreateUserValidate = {
   name: {
