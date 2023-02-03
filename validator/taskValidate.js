@@ -1,5 +1,5 @@
 const validator = require(".");
-const { Task } = require("../models/task");
+const { Task } = require("../models/Task");
 const { User } = require("../models/User");
 const userValidateSchema = require("./userValidate");
 const allowedFilter = ["asc", "desc"];
