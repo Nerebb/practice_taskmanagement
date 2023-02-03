@@ -1,7 +1,7 @@
 const { validationResult } = require("express-validator");
 const { sendResponse, AppError } = require("../helpers/utils");
 const { ObjectId } = require("mongoose").Types;
-const { Task } = require("../models/task");
+const { Task } = require("../models/Task");
 const { User } = require("../models/User");
 const AdminID = process.env.ADMIN_ID;
 
