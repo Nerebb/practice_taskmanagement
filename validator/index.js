@@ -5,7 +5,7 @@ const AdminID = process.env.ADMIN_ID;
 
 validator.id = {
   notEmpty: {
-    errorMessage: "User haven't login or ID field not found",
+    errorMessage: "User haven't login or request id field not found",
   },
   isMongoId: {
     errorMessage: "ID not valid",
@@ -89,14 +89,27 @@ validator.status = {
   },
 };
 
-validator.assignee = {
-  isEmpty: {
-    errorMessage: "Only Admin can assign user with field Ref",
-  },
-};
-
 validator.ref = {
   ...validator.isAdmin,
+};
+
+validator.sortBy = {
+  isObject: {
+    errorMessage: "sortBy must be a object with value: 1 or -1",
+  },
+  optional: true,
+  custom: {
+    options: (value, { req }) => {
+      if (
+        !Object.values(value).some((i) => Number(i) === 1 || Number(i) === -1)
+      ) {
+        throw error;
+      }
+      return true;
+    },
+    errorMessage:
+      "sortBy must be a object <sortBy>: 1 or -1, 1 for asc, -1 for desc",
+  },
 };
 
 module.exports = validator;

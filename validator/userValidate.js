@@ -79,4 +79,18 @@ userValidateSchema.GetUserValidate = {
   },
 };
 
+userValidateSchema.GetUserByIdValidate = {
+  id: {
+    in: ["params"],
+    ...validator.id,
+  },
+  getAllTasks: {
+    in: ["query"],
+    isBoolean: {
+      errorMessage: "getAllTasks must have type boolean",
+    },
+    optional: true,
+  },
+};
+
 module.exports = userValidateSchema;

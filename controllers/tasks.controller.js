@@ -1,33 +1,34 @@
 const { validationResult } = require("express-validator");
+const { isValidObjectId } = require("mongoose");
 const { sendResponse, AppError } = require("../helpers/utils");
-const { ObjectId } = require("mongoose").Types;
 const { Task } = require("../models/Task");
 const { User } = require("../models/User");
-const AdminID = process.env.ADMIN_ID;
 
 const taskController = {};
 
 taskController.getTask = async (req, res, next) => {
-  const { status, createAt, updateAt } = req.query;
+  const { status, name } = req.query;
+  const { sortBy } = req.body;
+
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       throw new AppError(400, errors.array()[0].msg);
     }
 
+    //Combine the query for mongoose
     const query = {};
+    if (name) query.name = name;
     if (status) query.status = status;
 
-    let getTasks = await Task.find(query);
-
-    const sortBy = createAt ? "createAt" : updateAt ? "updateAt" : undefined;
-    const sortType = createAt || updateAt;
+    let getTasks;
+    //Sort
     if (sortBy) {
-      getTasks = getTasks.sort((a, b) => {
-        return sortType === "asc"
-          ? Date.parse(a[sortBy]) - Date.parse(b[sortBy])
-          : Date.parse(b[sortBy]) - Date.parse(a[sortBy]);
-      });
+      getTasks = await Task.find(query).sort(sortBy);
+      if (getTasks.length === 0) throw new AppError(400, "Task not found");
+    } else {
+      getTasks = await Task.find(query);
+      if (getTasks.length === 0) throw new AppError(400, "Task name not found");
     }
 
     sendResponse(res, 200, true, { getTasks }, null, "Get tasks success");
@@ -44,8 +45,9 @@ taskController.getTaskById = async (req, res, next) => {
       throw new AppError(400, errors.array()[0].msg);
     }
 
-    const task = await Task.findById(id).where("isDeleted", false);
-    if (!task) throw new AppError(400, "Task ID not found");
+    const task = await Task.findById(id).where({ isDeleted: false });
+    if (!task)
+      throw new AppError(400, "Task ID not found or Task has been deleted");
 
     sendResponse(res, 200, true, { task }, null, "Get tasks success");
   } catch (error) {
@@ -54,7 +56,7 @@ taskController.getTaskById = async (req, res, next) => {
 };
 
 taskController.createTask = async (req, res, next) => {
-  const { ref } = req.body;
+  const { assigneeId } = req.body;
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -63,8 +65,16 @@ taskController.createTask = async (req, res, next) => {
 
     const newTask = await Task.create(req.body);
 
-    if (ref) {
-      const assignedUser = await User.findById(ref).where({ isDeleted: false });
+    /**
+     * @assignee
+     * @allowedFilter : 'admin','employee'
+     * @description: user roles
+     * @required: Only admin can set the role
+     */
+    if (assigneeId) {
+      const assignedUser = await User.findById(assigneeId).where({
+        isDeleted: false,
+      });
       if (!assignedUser) throw new AppError(400, "User not found");
       assignedUser.tasks.push(newTask._id);
       newTask.assignee = assignedUser;
@@ -80,7 +90,7 @@ taskController.createTask = async (req, res, next) => {
 
 taskController.modifyTask = async (req, res, next) => {
   const { id } = req.params;
-  const { ref, status, removeAssignee } = req.body;
+  const { name, description, assigneeId, status, removeAssignee } = req.body;
 
   try {
     const errors = validationResult(req);
@@ -88,34 +98,74 @@ taskController.modifyTask = async (req, res, next) => {
       throw new AppError(400, errors.array()[0].msg);
     }
 
+    //Checks removeAssignee type :boolean
+    if (removeAssignee && typeof removeAssignee !== "boolean")
+      throw new AppError(400, "removeAssignee is a boolean type");
+
     let editedTask = await Task.findById(id);
 
-    let editUserTasks = await User.findById(ref);
-
-    if (!editedTask) throw new AppError(400, "Task not found");
-
+    /**
+     * @Status
+     * @description: status = "done" then can only change to archive
+     */
     if (editedTask.status === "done" && status && status !== "archive") {
       throw new AppError(400, "This task has done! can only change to archive");
     } else {
       editedTask.status = status;
     }
 
-    if (ref.length > 0 && !removeAssignee) {
-      if (!editUserTasks) throw new AppError(400, "Assign user not found");
-      if (editUserTasks.tasks.includes(id))
-        throw new AppError(400, "Task already assigned to this user");
-      editUserTasks.tasks.push(id);
-      editedTask.assignee = editUserTasks;
-      await editUserTasks.save();
-      await editedTask.save();
-      sendResponse(res, 200, true, { editedTask }, null, "Create task success");
-    } else if (removeAssignee) {
-      editUserTasks = await User.updateOne(
-        { _id: ref },
-        { $pull: { tasks: id } }
-      );
-      sendResponse(res, 200, true, null, "Assignee removed from task");
+    /**
+     * @assigneeId
+     * @description: a reference to User, key: ObjectId of User
+     */
+
+    if (assigneeId) {
+      //Check assignee is ObjectId
+      if (!isValidObjectId(assigneeId)) throw new AppError(400, "UserId or ");
+
+      //FetchData
+      let assignUser = await User.findById(assigneeId).where({
+        isDeleted: false,
+      });
+
+      //Check if can find editUser
+      if (!assignUser)
+        throw new AppError(400, "Assign user not found or has been deleted");
+
+      if (!removeAssignee) {
+        //Check if request Assignee already assign the task
+        if (assignUser.tasks.some((i) => i.toString() === id))
+          throw new AppError(400, "User already assigned to this task");
+
+        //Update
+        assignUser.tasks.push(id);
+        editedTask.assignee = assignUser;
+
+        await assignUser.save();
+      } else if (removeAssignee) {
+        //Check if assigneeId is assigned
+        if (!assignUser.tasks.some((i) => i.toString() === id))
+          throw new AppError(400, "User given not found in selected task");
+
+        await User.updateOne({ _id: assigneeId }, { $pull: { tasks: id } });
+
+        editedTask = await Task.updateOne(
+          { _id: id },
+          { $unset: { assignee: assigneeId } }
+        );
+
+        return sendResponse(res, 200, true, "Assignee removed from task", null);
+      }
     }
+
+    /**
+     * @AllowedField : name, description
+     */
+    if (name) editedTask.name = name;
+    if (description) editedTask.description = description;
+    await editedTask.save();
+
+    sendResponse(res, 200, true, editedTask, null);
   } catch (error) {
     next(error);
   }
@@ -139,7 +189,7 @@ taskController.deleteTask = async (req, res, next) => {
 
     deletedTask = await deletedTask.save();
 
-    sendResponse(res, 200, true, { deletedTask }, null, "Get tasks success");
+    sendResponse(res, 200, true, null, null, "Delete tasks success");
   } catch (error) {
     next(error);
   }

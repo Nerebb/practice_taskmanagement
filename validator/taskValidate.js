@@ -18,10 +18,6 @@ taskValidateSchema.modifyTaskValidate = {
     in: ["body"],
     ...validator.status,
   },
-  assignee: {
-    in: ["body"],
-    ...validator.assignee,
-  },
   curId: {
     in: ["body"],
     ...validator.id,
@@ -39,11 +35,6 @@ taskValidateSchema.createTaskValidate = {
       errorMessage: "Task name required",
     },
     ...validator.Taskname,
-  },
-
-  assignee: {
-    in: ["body"],
-    ...validator.assignee,
   },
 
   description: {
@@ -67,35 +58,13 @@ taskValidateSchema.getTaskValidate = {
     in: ["query"],
     ...validator.status,
   },
-  createAt: {
+  name: {
     in: ["query"],
-    custom: {
-      options: (value, { req }) => {
-        if (!value) {
-          return true;
-        } else if (!allowedFilter.includes(value) || req.query.updateAt) {
-          throw error;
-        }
-        return value;
-      },
-      errorMessage:
-        "createAt/updateAt are unique and only accept value: asc or desc",
-    },
+    ...validator.Taskname,
   },
-  updateAt: {
-    in: ["query"],
-    custom: {
-      options: (value, { req }) => {
-        if (!value) {
-          return true;
-        } else if (!allowedFilter.includes(value) || req.query.createAt) {
-          throw error;
-        }
-        return value;
-      },
-      errorMessage:
-        "createAt/updateAt are unique and only accept value: asc or desc",
-    },
+  sortBy: {
+    in: ["body"],
+    ...validator.sortBy,
   },
 };
 

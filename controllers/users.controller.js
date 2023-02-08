@@ -29,7 +29,7 @@ userController.getUser = async (req, res, next) => {
 
 userController.getUserById = async (req, res, next) => {
   const { id } = req.params;
-  const { getAllTask } = req.body;
+  const { getAllTasks } = req.query;
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -38,7 +38,7 @@ userController.getUserById = async (req, res, next) => {
 
     let getUser;
 
-    if (Boolean(getAllTask)) {
+    if (Boolean(getAllTasks)) {
       getUser = await User.findById(id).populate({
         path: "tasks",
         match: { isDeleted: false },
@@ -49,14 +49,7 @@ userController.getUserById = async (req, res, next) => {
 
     if (!getUser) throw new AppError(400, "User or Tasks not found");
 
-    sendResponse(
-      res,
-      200,
-      true,
-      Boolean(getAllTask) ? { tasks: getUser.tasks } : { getUser },
-      null,
-      "Get users success"
-    );
+    sendResponse(res, 200, true, { getUser }, null, "Get users success");
   } catch (error) {
     next(error);
   }
